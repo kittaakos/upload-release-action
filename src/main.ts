@@ -21,7 +21,7 @@ async function get_release_by_tag(
   try {
     core.debug(`Getting release by tag ${tag}.`)
     return await octokit.repos.getReleaseByTag({
-      ...github.context.repo,
+      ...repo(),
       tag: tag
     })
   } catch (error) {
@@ -31,7 +31,7 @@ async function get_release_by_tag(
         `Release for tag ${tag} doesn't exist yet so we'll create it now.`
       )
       return await octokit.repos.createRelease({
-        ...github.context.repo,
+        ...repo(),
         tag_name: tag,
         prerelease: prerelease,
         name: release_name,
@@ -61,7 +61,7 @@ async function upload_to_release(
 
   // Check for duplicates.
   const assets: RepoAssetsResp = await octokit.repos.listReleaseAssets({
-    ...github.context.repo,
+    ...repo(),
     release_id: release.data.id
   })
   const duplicate_asset = assets.data.find(a => a.name === asset_name)
@@ -71,7 +71,7 @@ async function upload_to_release(
         `An asset called ${asset_name} already exists in release ${tag} so we'll overwrite it.`
       )
       await octokit.repos.deleteReleaseAsset({
-        ...github.context.repo,
+        ...repo(),
         asset_id: duplicate_asset.id
       })
     } else {
@@ -97,6 +97,25 @@ async function upload_to_release(
     }
   )
   return uploaded_asset.data.browser_download_url
+}
+
+function repo(): {owner: string; repo: string} {
+  const name = core.getInput('repo_name')
+  if (!name) {
+    return github.context.repo
+  }
+  const owner = name.substr(0, name.indexOf('/'))
+  if (!owner) {
+    throw new Error(`Could not extract 'owner' from 'repo_name': ${name}.`)
+  }
+  const repo = name.substr(name.indexOf('/') + 1)
+  if (!repo) {
+    throw new Error(`Could not extract 'repo' from 'repo_name': ${name}.`)
+  }
+  return {
+    owner,
+    repo
+  }
 }
 
 async function run(): Promise<void> {

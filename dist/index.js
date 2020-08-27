@@ -2205,13 +2205,13 @@ function get_release_by_tag(tag, prerelease, release_name, body, octokit) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             core.debug(`Getting release by tag ${tag}.`);
-            return yield octokit.repos.getReleaseByTag(Object.assign(Object.assign({}, github.context.repo), { tag: tag }));
+            return yield octokit.repos.getReleaseByTag(Object.assign(Object.assign({}, repo()), { tag: tag }));
         }
         catch (error) {
             // If this returns 404, we need to create the release first.
             if (error.status === 404) {
                 core.debug(`Release for tag ${tag} doesn't exist yet so we'll create it now.`);
-                return yield octokit.repos.createRelease(Object.assign(Object.assign({}, github.context.repo), { tag_name: tag, prerelease: prerelease, name: release_name, body: body }));
+                return yield octokit.repos.createRelease(Object.assign(Object.assign({}, repo()), { tag_name: tag, prerelease: prerelease, name: release_name, body: body }));
             }
             else {
                 throw error;
@@ -2229,12 +2229,12 @@ function upload_to_release(release, file, asset_name, tag, overwrite, octokit) {
         const file_size = stat.size;
         const file_bytes = fs.readFileSync(file);
         // Check for duplicates.
-        const assets = yield octokit.repos.listReleaseAssets(Object.assign(Object.assign({}, github.context.repo), { release_id: release.data.id }));
+        const assets = yield octokit.repos.listReleaseAssets(Object.assign(Object.assign({}, repo()), { release_id: release.data.id }));
         const duplicate_asset = assets.data.find(a => a.name === asset_name);
         if (duplicate_asset !== undefined) {
             if (overwrite) {
                 core.debug(`An asset called ${asset_name} already exists in release ${tag} so we'll overwrite it.`);
-                yield octokit.repos.deleteReleaseAsset(Object.assign(Object.assign({}, github.context.repo), { asset_id: duplicate_asset.id }));
+                yield octokit.repos.deleteReleaseAsset(Object.assign(Object.assign({}, repo()), { asset_id: duplicate_asset.id }));
             }
             else {
                 core.setFailed(`An asset called ${asset_name} already exists.`);
@@ -2256,6 +2256,24 @@ function upload_to_release(release, file, asset_name, tag, overwrite, octokit) {
         });
         return uploaded_asset.data.browser_download_url;
     });
+}
+function repo() {
+    const name = core.getInput('repo_name');
+    if (!name) {
+        return github.context.repo;
+    }
+    const owner = name.substr(0, name.indexOf('/'));
+    if (!owner) {
+        throw new Error(`Could not extract 'owner' from 'repo_name': ${name}.`);
+    }
+    const repo = name.substr(name.indexOf('/') + 1);
+    if (!repo) {
+        throw new Error(`Could not extract 'repo' from 'repo_name': ${name}.`);
+    }
+    return {
+        owner,
+        repo
+    };
 }
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
